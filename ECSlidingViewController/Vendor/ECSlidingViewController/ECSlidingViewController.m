@@ -12,6 +12,7 @@ NSString *const ECSlidingViewUnderRightWillAppear = @"ECSlidingViewUnderRightWil
 NSString *const ECSlidingViewUnderLeftWillAppear  = @"ECSlidingViewUnderLeftWillAppear";
 NSString *const ECSlidingViewTopDidAnchorLeft     = @"ECSlidingViewTopDidAnchorLeft";
 NSString *const ECSlidingViewTopDidAnchorRight    = @"ECSlidingViewTopDidAnchorRight";
+NSString *const ECSlidingViewTopWillAppear        = @"ECSlidingViewTopWillAppear";
 NSString *const ECSlidingViewTopDidReset          = @"ECSlidingViewTopDidReset";
 
 @interface ECSlidingViewController()
@@ -247,6 +248,9 @@ NSString *const ECSlidingViewTopDidReset          = @"ECSlidingViewTopDidReset";
   if (recognizer.state == UIGestureRecognizerStateBegan) {
     self.initialTouchPositionX = currentTouchPositionX;
     self.initialHoizontalCenter = self.topView.center.x;
+    if (_topViewIsOffScreen) {
+      [self topViewWillAppear];
+    }
   } else if (recognizer.state == UIGestureRecognizerStateChanged) {
     CGFloat panAmount = self.initialTouchPositionX - currentTouchPositionX;
     CGFloat newCenterPosition = self.initialHoizontalCenter - panAmount;
@@ -308,7 +312,13 @@ NSString *const ECSlidingViewTopDidReset          = @"ECSlidingViewTopDidReset";
     if (complete) {
       complete();
     }
-    _topViewIsOffScreen = NO;
+      
+    if ((newCenter == self.anchorLeftRevealAmount * 1.5) || (newCenter == self.anchorRightRevealAmount * -0.5)) {
+      _topViewIsOffScreen = YES;
+    } else {
+      _topViewIsOffScreen = NO;
+    }
+
     [self addTopViewSnapshot];
     dispatch_async(dispatch_get_main_queue(), ^{
       NSString *key = (side == ECLeft) ? ECSlidingViewTopDidAnchorLeft : ECSlidingViewTopDidAnchorRight;
@@ -510,6 +520,13 @@ NSString *const ECSlidingViewTopDidReset          = @"ECSlidingViewTopDidReset";
   [self updateUnderRightLayout];
   _underLeftShowing  = NO;
   _underRightShowing = YES;
+}
+
+- (void)topViewWillAppear
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [[NSNotificationCenter defaultCenter] postNotificationName:ECSlidingViewTopWillAppear object:self userInfo:nil];
+  });
 }
 
 - (void)topDidReset
