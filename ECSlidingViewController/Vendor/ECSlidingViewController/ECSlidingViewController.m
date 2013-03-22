@@ -79,6 +79,8 @@ NSString *const ECSlidingViewTopDidReset          = @"ECSlidingViewTopDidReset";
 @synthesize underLeftWidthLayout  = _underLeftWidthLayout;
 @synthesize shouldAllowUserInteractionsWhenAnchored;
 @synthesize resetStrategy = _resetStrategy;
+@synthesize anchorBounceAmount;
+@synthesize underLayoutBackgroundColor;
 
 // category properties
 @synthesize topViewSnapshot;
@@ -258,7 +260,13 @@ NSString *const ECSlidingViewTopDidReset          = @"ECSlidingViewTopDidReset";
     if ((newCenterPosition < self.resettedCenter && self.anchorLeftTopViewCenter == NSNotFound) || (newCenterPosition > self.resettedCenter && self.anchorRightTopViewCenter == NSNotFound)) {
       newCenterPosition = self.resettedCenter;
     }
-    
+      
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        if ([self shouldCancelPanningAtCenter:newCenterPosition]) {
+            return;
+        }
+    }
+      
     [self topViewHorizontalCenterWillChange:newCenterPosition];
     [self updateTopViewHorizontalCenter:newCenterPosition];
     [self topViewHorizontalCenterDidChange:newCenterPosition];
@@ -274,6 +282,25 @@ NSString *const ECSlidingViewTopDidReset          = @"ECSlidingViewTopDidReset";
       [self resetTopView];
     }
   }
+}
+
+- (BOOL)shouldCancelPanningAtCenter:(CGFloat)centerPosition {
+
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPhone) {
+        return NO;
+    }
+    
+    // prevent top view from sliding past reveal amount
+    // only perform this for iPad idiom
+    
+    if (self.underRightShowing) {
+        return (centerPosition < ((self.topView.frame.size.width / 2) - anchorLeftRevealAmount - anchorBounceAmount));
+    } else if (self.underLeftShowing) {
+        return (centerPosition > ((self.topView.frame.size.width / 2) + anchorRightRevealAmount + anchorBounceAmount));
+    } else {
+        return NO;
+    }
+
 }
 
 - (UIPanGestureRecognizer *)panGesture
@@ -297,13 +324,28 @@ NSString *const ECSlidingViewTopDidReset          = @"ECSlidingViewTopDidReset";
   }
   
   [self topViewHorizontalCenterWillChange:newCenter];
+    
+  if (underLayoutBackgroundColor != nil) {
+    [self.topViewController.parentViewController.view setBackgroundColor:underLayoutBackgroundColor];
+  }
   
   [UIView animateWithDuration:0.25f animations:^{
     if (animations) {
       animations();
     }
-    [self updateTopViewHorizontalCenter:newCenter];
+    
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        [self updateTopViewHorizontalCenter:newCenter - anchorBounceAmount];
+    } else {
+        [self updateTopViewHorizontalCenter:newCenter];
+    }
+    
   } completion:^(BOOL finished){
+    
+      if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+          [self addBounceAnimationToLayer:self.topView.layer center:newCenter - anchorBounceAmount];
+      }
+      
     if (_resetStrategy & ECPanning) {
       self.panGesture.enabled = YES;
     } else {
@@ -325,6 +367,25 @@ NSString *const ECSlidingViewTopDidReset          = @"ECSlidingViewTopDidReset";
       [[NSNotificationCenter defaultCenter] postNotificationName:key object:self userInfo:nil];
     });
   }];
+}
+
+- (void)addBounceAnimationToLayer:(CALayer *)layer center:(CGFloat)center {
+    
+    // bounce sliding top view x position
+    
+    CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"position.x"];
+    animation.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+    animation.fromValue = [NSNumber numberWithFloat:0];
+    if (self.underRightShowing) {
+        animation.toValue = [NSNumber numberWithFloat:anchorBounceAmount + 5];
+    } else {
+        animation.toValue = [NSNumber numberWithFloat:-anchorBounceAmount - 5];
+    }
+    animation.duration = 0.3;
+    animation.removedOnCompletion = NO;
+    animation.additive = YES;
+    animation.fillMode = kCAFillModeForwards;
+    [layer addAnimation:animation forKey:@"bounceAnimation"];
 }
 
 - (void)anchorTopViewOffScreenTo:(ECSide)side
@@ -411,6 +472,7 @@ NSString *const ECSlidingViewTopDidReset          = @"ECSlidingViewTopDidReset";
 
 - (void)updateTopViewHorizontalCenter:(CGFloat)newHorizontalCenter
 {
+  [self.topView.layer removeAnimationForKey:@"bounceAnimation"];
   CGPoint center = self.topView.center;
   center.x = newHorizontalCenter;
   self.topView.layer.position = center;

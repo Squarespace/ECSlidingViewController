@@ -111,6 +111,14 @@ typedef enum {
  */
 @property (nonatomic, unsafe_unretained) CGFloat anchorRightRevealAmount;
 
+/** Returns the distance of bounce when the top view is anchored to either left or right side.
+ */
+@property (nonatomic, unsafe_unretained) CGFloat anchorBounceAmount;
+
+/** Specifies the background color of the view anchored to either left or right side.
+ */
+@property (nonatomic, strong) UIColor *underLayoutBackgroundColor;
+
 /** Specifies if the user should be able to interact with the top view when it is anchored.
  
  By default, this is set to NO
